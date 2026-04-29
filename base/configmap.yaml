@@ -1,0 +1,89 @@
+# ConfigMap for Prometheus
+# Berisi prometheus.yml yang disesuaikan untuk Kubernetes.
+# Target scrape menggunakan Kubernetes Service DNS (bukan Docker hostname).
+# Format: <service-name>.<namespace>.svc.cluster.local:<port>
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name:      prometheus
+    app.kubernetes.io/component: config
+data:
+  prometheus.yml: |
+    # Prometheus scrape configuration — Kubernetes adaptation
+    # Service targets menggunakan K8s ClusterIP Service DNS.
+    # Semua microservice menggunakan port 80 (ClusterIP service) dengan path /metrics.
+
+    global:
+      scrape_interval:     15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: "kubernetes"
+        env:     "production"
+
+    scrape_configs:
+
+      # ── Auth Service ──────────────────────────────────────────────────────────
+      - job_name: "auth-microservice"
+        static_configs:
+          - targets: ["auth-service.auth-service.svc.cluster.local:80"]
+            labels:
+              service:   "auth-microservice"
+              language:  "nodejs"
+              namespace: "auth-service"
+        metrics_path:    /metrics
+        scrape_interval: 15s
+
+      # ── Book Service ──────────────────────────────────────────────────────────
+      - job_name: "book-service"
+        static_configs:
+          - targets: ["book-service.book-service.svc.cluster.local:80"]
+            labels:
+              service:   "book-service"
+              language:  "nodejs"
+              namespace: "book-service"
+        metrics_path:    /metrics
+        scrape_interval: 15s
+
+      # ── Order Service ─────────────────────────────────────────────────────────
+      - job_name: "order-service"
+        static_configs:
+          - targets: ["order-service.order-service.svc.cluster.local:80"]
+            labels:
+              service:   "order-service"
+              language:  "nodejs"
+              namespace: "order-service"
+        metrics_path:    /metrics
+        scrape_interval: 15s
+
+      # ── Payment Service ───────────────────────────────────────────────────────
+      - job_name: "payment-service"
+        static_configs:
+          - targets: ["payment-service.payment-service.svc.cluster.local:80"]
+            labels:
+              service:   "payment-service"
+              language:  "nodejs"
+              namespace: "payment-service"
+        metrics_path:    /metrics
+        scrape_interval: 15s
+
+      # ── Blockchain Service ────────────────────────────────────────────────────
+      - job_name: "blockchain-service"
+        static_configs:
+          - targets: ["blockchain-service.blockchain-service.svc.cluster.local:80"]
+            labels:
+              service:   "blockchain-service"
+              language:  "python"
+              namespace: "blockchain-service"
+        metrics_path:    /metrics
+        scrape_interval: 15s
+
+      # ── Prometheus self-monitoring ────────────────────────────────────────────
+      - job_name: "prometheus"
+        static_configs:
+          - targets: ["localhost:9090"]
+            labels:
+              service: "prometheus"

@@ -1,0 +1,11 @@
+# ServiceAccount for Prometheus
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus-sa
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name:      prometheus
+    app.kubernetes.io/component: serviceaccount
+automountServiceAccountToken: false

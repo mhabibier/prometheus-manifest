@@ -1,0 +1,18 @@
+# PersistentVolumeClaim for Prometheus data
+# Setara dengan volume `prometheus_data:/prometheus` di Docker Compose.
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-data-pvc
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name:      prometheus
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi   # Retention 7 hari, sesuaikan dengan volume metrics
+  # storageClassName: ""

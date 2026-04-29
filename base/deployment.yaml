@@ -1,0 +1,109 @@
+# Deployment for Prometheus
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name:      prometheus
+    app.kubernetes.io/component: metrics-server
+    app.kubernetes.io/version:   "v2.52.0"
+spec:
+  replicas: 1   # Prometheus single-instance (stateful)
+  selector:
+    matchLabels:
+      app: prometheus
+  strategy:
+    type: Recreate   # Recreate karena PVC ReadWriteOnce — tidak bisa 2 pod pakai PVC bersamaan
+  template:
+    metadata:
+      labels:
+        app: prometheus
+        app.kubernetes.io/name:      prometheus
+        app.kubernetes.io/component: metrics-server
+    spec:
+      serviceAccountName: prometheus-sa
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser:    65534   # nobody — user default prometheus image
+        runAsGroup:   65534
+        fsGroup:      65534
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      imagePullSecrets:
+        - name: harbor-secret
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.52.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+            - "--storage.tsdb.retention.time=7d"
+            - "--web.enable-lifecycle"
+            - "--web.enable-remote-write-receiver"
+            - "--web.listen-address=0.0.0.0:9090"
+          ports:
+            - name:          http
+              containerPort: 9090
+              protocol:      TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem:   false   # Prometheus butuh write ke /prometheus
+            runAsNonRoot:             true
+            runAsUser:                65534
+            capabilities:
+              drop: ["ALL"]
+          startupProbe:
+            httpGet:
+              path: /-/healthy
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds:       5
+            failureThreshold:    12
+            timeoutSeconds:      3
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: http
+            initialDelaySeconds: 0
+            periodSeconds:       30
+            timeoutSeconds:      5
+            failureThreshold:    3
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: http
+            initialDelaySeconds: 0
+            periodSeconds:       10
+            timeoutSeconds:      3
+            failureThreshold:    3
+            successThreshold:    1
+          resources:
+            requests:
+              cpu:    "100m"
+              memory: "256Mi"
+            limits:
+              cpu:    "1000m"
+              memory: "512Mi"
+          volumeMounts:
+            - name:      config
+              mountPath: /etc/prometheus/prometheus.yml
+              subPath:   prometheus.yml
+              readOnly:  true
+            - name:      data
+              mountPath: /prometheus
+            - name:      tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: prometheus-data-pvc
+        - name: tmp
+          emptyDir: {}
