@@ -33,8 +33,6 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       terminationGracePeriodSeconds: 30
-      imagePullSecrets:
-        - name: harbor-secret
       containers:
         - name: prometheus
           image: prom/prometheus:v2.52.0
