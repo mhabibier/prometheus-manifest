@@ -1,0 +1,45 @@
+# RBAC for Prometheus
+# Prometheus membutuhkan akses ke Kubernetes API untuk kubernetes_sd_configs:
+# - List/watch pods, services, endpoints, nodes di semua namespace
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus-clusterrole
+  labels:
+    app.kubernetes.io/name:      prometheus
+    app.kubernetes.io/component: rbac
+rules:
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - nodes/proxy
+      - nodes/metrics
+      - services
+      - endpoints
+      - pods
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["extensions", "networking.k8s.io"]
+    resources:
+      - ingresses
+    verbs: ["get", "list", "watch"]
+  - nonResourceURLs: ["/metrics"]
+    verbs: ["get"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus-clusterrolebinding
+  labels:
+    app.kubernetes.io/name:      prometheus
+    app.kubernetes.io/component: rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind:     ClusterRole
+  name:     prometheus-clusterrole
+subjects:
+  - kind:      ServiceAccount
+    name:      prometheus-sa
+    namespace: monitoring

@@ -1,4 +1,9 @@
 # ConfigMap for Prometheus
+# Menggunakan kubernetes_sd_configs untuk auto-discovery pod dengan annotation:
+#   prometheus.io/scrape: "true"
+#   prometheus.io/port: "3000"
+#   prometheus.io/path: "/metrics"
+# Prometheus scrape langsung ke pod IP:port (bukan melalui ClusterIP Service).
 
 apiVersion: v1
 kind: ConfigMap
@@ -10,10 +15,6 @@ metadata:
     app.kubernetes.io/component: config
 data:
   prometheus.yml: |
-    # Prometheus scrape configuration — Kubernetes adaptation
-    # Service targets menggunakan K8s ClusterIP Service DNS.
-    # Semua microservice menggunakan port 80 (ClusterIP service) dengan path /metrics.
-
     global:
       scrape_interval:     15s
       evaluation_interval: 15s
@@ -23,64 +24,58 @@ data:
 
     scrape_configs:
 
-      # ── Auth Service ──────────────────────────────────────────────────────────
-      - job_name: "auth-microservice"
-        static_configs:
-          - targets: ["auth-service.auth-service.svc.cluster.local:80"]
-            labels:
-              service:   "auth-microservice"
-              language:  "nodejs"
-              namespace: "auth-service"
-        metrics_path:    /metrics
-        scrape_interval: 15s
+      # ── Auto-discover pods via annotation ─────────────────────────────────────
+      # Pod harus punya annotation:
+      #   prometheus.io/scrape: "true"
+      #   prometheus.io/port: "3000"    (port container, bukan service port)
+      #   prometheus.io/path: "/metrics" (opsional, default /metrics)
+      - job_name: "kubernetes-pods"
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          # Hanya scrape pod yang punya annotation prometheus.io/scrape: "true"
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: "true"
 
-      # ── Book Service ──────────────────────────────────────────────────────────
-      - job_name: "book-service"
-        static_configs:
-          - targets: ["book-service.book-service.svc.cluster.local:80"]
-            labels:
-              service:   "book-service"
-              language:  "nodejs"
-              namespace: "book-service"
-        metrics_path:    /metrics
-        scrape_interval: 15s
+          # Gunakan annotation port jika ada
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            target_label: __address__
+            regex: (.+)
+            replacement: $1
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
 
-      # ── Order Service ─────────────────────────────────────────────────────────
-      - job_name: "order-service"
-        static_configs:
-          - targets: ["order-service.order-service.svc.cluster.local:80"]
-            labels:
-              service:   "order-service"
-              language:  "nodejs"
-              namespace: "order-service"
-        metrics_path:    /metrics
-        scrape_interval: 15s
+          # Gunakan annotation path jika ada (default /metrics)
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
 
-      # ── Payment Service ───────────────────────────────────────────────────────
-      - job_name: "payment-service"
-        static_configs:
-          - targets: ["payment-service.payment-service.svc.cluster.local:80"]
-            labels:
-              service:   "payment-service"
-              language:  "nodejs"
-              namespace: "payment-service"
-        metrics_path:    /metrics
-        scrape_interval: 15s
+          # Label namespace
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
 
-      # ── Blockchain Service ────────────────────────────────────────────────────
-      - job_name: "blockchain-service"
-        static_configs:
-          - targets: ["blockchain-service.blockchain-service.svc.cluster.local:80"]
-            labels:
-              service:   "blockchain-service"
-              language:  "python"
-              namespace: "blockchain-service"
-        metrics_path:    /metrics
-        scrape_interval: 15s
+          # Label pod name
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
 
-      # ── Prometheus self-monitoring ────────────────────────────────────────────
+          # Label app dari pod label
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            target_label: service
+
+          # Label app.kubernetes.io/name
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+            target_label: job
+
+      # ── Prometheus self-monitoring ─────────────────────────────────────────────
       - job_name: "prometheus"
         static_configs:
           - targets: ["localhost:9090"]
             labels:
               service: "prometheus"
+              namespace: "monitoring"

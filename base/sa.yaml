@@ -1,4 +1,5 @@
 # ServiceAccount for Prometheus
+# automountServiceAccountToken harus true agar kubernetes_sd_configs bisa akses API
 
 apiVersion: v1
 kind: ServiceAccount
@@ -8,4 +9,4 @@ metadata:
   labels:
     app.kubernetes.io/name:      prometheus
     app.kubernetes.io/component: serviceaccount
-automountServiceAccountToken: false
+automountServiceAccountToken: true

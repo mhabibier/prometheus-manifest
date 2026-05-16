@@ -24,7 +24,7 @@ spec:
         app.kubernetes.io/component: metrics-server
     spec:
       serviceAccountName: prometheus-sa
-      automountServiceAccountToken: false
+      automountServiceAccountToken: true   # diperlukan untuk kubernetes_sd_configs
       securityContext:
         runAsNonRoot: true
         runAsUser:    65534   # nobody — user default prometheus image
