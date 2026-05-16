@@ -15,4 +15,4 @@ spec:
   resources:
     requests:
       storage: 10Gi   # Retention 7 hari, sesuaikan dengan volume metrics
-  # storageClassName: ""
+  storageClassName: "ceph-rbd-sc"  # Sesuaikan dengan StorageClass yang digunakan di cluster Anda
