@@ -1,7 +1,4 @@
 # ConfigMap for Prometheus
-# Berisi prometheus.yml yang disesuaikan untuk Kubernetes.
-# Target scrape menggunakan Kubernetes Service DNS (bukan Docker hostname).
-# Format: <service-name>.<namespace>.svc.cluster.local:<port>
 
 apiVersion: v1
 kind: ConfigMap
