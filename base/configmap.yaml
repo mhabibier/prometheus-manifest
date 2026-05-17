@@ -72,8 +72,11 @@ data:
             action: replace
             target_label: service
 
-          # 8. Label job dari app.kubernetes.io/name
-          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+          # 8. Label job dari pod label app=xxx
+          # Dashboard Grafana pakai job="book-service","order-service","payment-service"
+          # Pod label app: book-service, order-service, payment-service → MATCH
+          # (jangan pakai app.kubernetes.io/name: nilainya book-microservice → tidak match!)
+          - source_labels: [__meta_kubernetes_pod_label_app]
             action: replace
             target_label: job
 
