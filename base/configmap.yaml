@@ -1,9 +1,11 @@
 # ConfigMap for Prometheus
-# Menggunakan kubernetes_sd_configs untuk auto-discovery pod dengan annotation:
+# kubernetes_sd_configs: auto-discover pod dengan annotation prometheus.io/scrape: "true"
+# Prometheus scrape langsung ke pod IP:port (bukan via ClusterIP Service).
+#
+# Annotations yang diperlukan di pod template:
 #   prometheus.io/scrape: "true"
-#   prometheus.io/port: "3000"
-#   prometheus.io/path: "/metrics"
-# Prometheus scrape langsung ke pod IP:port (bukan melalui ClusterIP Service).
+#   prometheus.io/port:   "3000"   <- container port
+#   prometheus.io/path:   "/metrics"
 
 apiVersion: v1
 kind: ConfigMap
@@ -25,51 +27,54 @@ data:
     scrape_configs:
 
       # ── Auto-discover pods via annotation ─────────────────────────────────────
-      # Pod harus punya annotation:
-      #   prometheus.io/scrape: "true"
-      #   prometheus.io/port: "3000"    (port container, bukan service port)
-      #   prometheus.io/path: "/metrics" (opsional, default /metrics)
       - job_name: "kubernetes-pods"
         kubernetes_sd_configs:
           - role: pod
         relabel_configs:
-          # Hanya scrape pod yang punya annotation prometheus.io/scrape: "true"
+
+          # 1. Hanya scrape pod dengan annotation scrape=true
           - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
             action: keep
             regex: "true"
 
-          # Gunakan annotation port jika ada
-          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port]
-            action: replace
-            target_label: __address__
-            regex: (.+)
-            replacement: $1
+          # 2. Ganti port di __address__ dengan annotation port
+          #    __address__ awal = <pod-ip>:<default-port>
+          #    source: "<pod-ip>:<x>;<annotation-port>" → replacement: "<pod-ip>:<annotation-port>"
           - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
             action: replace
-            regex: ([^:]+)(?::\d+)?;(\d+)
-            replacement: $1:$2
+            regex: "([^:]+)(?::\\d+)?;(\\d+)"
+            replacement: "$1:$2"
             target_label: __address__
 
-          # Gunakan annotation path jika ada (default /metrics)
+          # 3. Override path jika ada annotation (default Prometheus sudah /metrics)
           - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
             action: replace
             target_label: __metrics_path__
             regex: (.+)
 
-          # Label namespace
+          # 4. Label namespace
           - source_labels: [__meta_kubernetes_namespace]
+            action: replace
             target_label: namespace
 
-          # Label pod name
+          # 5. Label pod name
           - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
             target_label: pod
 
-          # Label app dari pod label
+          # 6. Label container name
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            action: replace
+            target_label: container
+
+          # 7. Label service dari pod label app=xxx
           - source_labels: [__meta_kubernetes_pod_label_app]
+            action: replace
             target_label: service
 
-          # Label app.kubernetes.io/name
+          # 8. Label job dari app.kubernetes.io/name
           - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+            action: replace
             target_label: job
 
       # ── Prometheus self-monitoring ─────────────────────────────────────────────
@@ -77,5 +82,5 @@ data:
         static_configs:
           - targets: ["localhost:9090"]
             labels:
-              service: "prometheus"
+              service:   "prometheus"
               namespace: "monitoring"
